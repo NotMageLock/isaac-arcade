@@ -2,25 +2,34 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
 <title>Isaac Arcade</title>
 <style>
-html, body { height: 100%; margin: 0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: center / cover no-repeat url('background.jpg'); display: flex; flex-direction: column; align-items: center; justify-content: flex-start; padding: 12px; box-sizing: border-box; -webkit-user-select: none; -ms-user-select: none; user-select: none; }
-#ruffle-container { width: 100%; max-width: 900px; height: 0; padding-top: 75%; position: relative; border-radius: 8px; overflow: hidden; background: transparent; margin-bottom: 12px; }
-#ruffle-player { position: absolute; inset: 0; width: 100%; height: 100%; }
-.controls { width: 100%; max-width: 900px; display: flex; gap: 12px; justify-content: space-between; align-items: center; }
-.stick { width: 40%; max-width: 320px; aspect-ratio: 1/1; background: rgba(255,255,255,0.06); border-radius: 50%; display: grid; place-items: center; touch-action: none; position: relative; }
-.thumb { width: 40%; height: 40%; background: rgba(255,255,255,0.4); border-radius: 50%; position: absolute; left: 30%; top: 30%; transition: left 0.05s, top 0.05s; }
-@media(max-width:420px){ .stick { width: 46%; } }
+html, body { margin:0; height:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: center / cover no-repeat url('background.jpg'); -webkit-user-select:none; -ms-user-select:none; user-select:none; overflow:hidden; }
+body { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
+#ruffle-container { width:100%; max-width:900px; aspect-ratio:4/3; background:transparent; position:relative; margin-top:12px; }
+#ruffle-player { width:100%; height:100%; position:absolute; inset:0; }
+.controls { width:100%; max-width:900px; display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding:12px; box-sizing:border-box; }
+.stick { width:40%; aspect-ratio:1/1; background: rgba(255,255,255,0.06); border-radius:50%; position:relative; touch-action:none; display:grid; place-items:center; }
+.thumb { width:40%; height:40%; background:rgba(255,255,255,0.4); border-radius:50%; position:absolute; left:30%; top:30%; transition:left 0.05s, top 0.05s; }
+.mid-buttons { display:flex; flex-direction:column; gap:8px; justify-content:center; align-items:center; }
+.mid-buttons button { min-width:70px; padding:12px; font-weight:700; font-size:16px; border:none; border-radius:8px; background:rgba(0,0,0,0.7); color:#fff; }
+@media(max-width:420px){ .stick { width:46%; } .mid-buttons button { min-width:56px; padding:10px; font-size:14px; } }
 </style>
 </head>
 <body>
 
-<h1 style="color:white;">Isaac Arcade</h1>
 <div id="ruffle-container"></div>
 
 <div class="controls">
   <div class="stick" id="left-stick"><div class="thumb" id="left-thumb"></div></div>
+
+  <div class="mid-buttons">
+    <button data-key="KeyQ">Q</button>
+    <button data-key="KeyE">E</button>
+    <button data-key="Space">Space</button>
+  </div>
+
   <div class="stick" id="right-stick"><div class="thumb" id="right-thumb"></div></div>
 </div>
 
@@ -30,18 +39,28 @@ document.addEventListener('DOMContentLoaded', () => {
   const SWF_URL = 'https://files.catbox.moe/kk84m9.swf';
   const ruffleContainer = document.getElementById('ruffle-container');
   const ruffle = window.RufflePlayer.newest();
-
   const player = ruffle.createPlayer();
   player.id = 'ruffle-player';
-  player.style.width = '100%';
-  player.style.height = '100%';
   ruffleContainer.appendChild(player);
   player.load(SWF_URL);
 
   function dispatchKey(type, code){
     const ev = new KeyboardEvent(type, { bubbles:true, cancelable:true, composed:true, key: code==='Space'?' ':code, code });
-    try{ player.contentWindow.dispatchEvent(ev); }catch(e){}
+    try { player.contentWindow.dispatchEvent(ev); } catch(e){}
   }
+
+  document.querySelectorAll('.mid-buttons button').forEach(btn=>{
+    const code = btn.getAttribute('data-key');
+    let active = false;
+    const start = e => { e.preventDefault(); if(active) return; active=true; btn.classList.add('active'); dispatchKey('keydown', code); }
+    const end = e => { e.preventDefault(); if(!active) return; active=false; btn.classList.remove('active'); dispatchKey('keyup', code); }
+    btn.addEventListener('mousedown', start);
+    btn.addEventListener('touchstart', start);
+    btn.addEventListener('mouseup', end);
+    btn.addEventListener('mouseleave', end);
+    btn.addEventListener('touchend', end);
+    btn.addEventListener('touchcancel', end);
+  });
 
   function setupJoystick(stickEl, thumbEl, keyMap){
     let activeKeys = new Set();
@@ -49,8 +68,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function start(e){
       e.preventDefault();
-      const rect = stickEl.getBoundingClientRect();
       const pos = e.touches?e.touches[0]:e;
+      const rect = stickEl.getBoundingClientRect();
       startX = pos.clientX;
       startY = pos.clientY;
       move(pos);
@@ -65,28 +84,32 @@ document.addEventListener('DOMContentLoaded', () => {
       const pos = e.touches?e.touches[0]:e;
       const dx = pos.clientX - startX;
       const dy = pos.clientY - startY;
+      const threshold = 20;
 
       let newKeys = new Set();
-      if(dy < -30) newKeys.add(keyMap.up);
-      if(dy > 30) newKeys.add(keyMap.down);
-      if(dx < -30) newKeys.add(keyMap.left);
-      if(dx > 30) newKeys.add(keyMap.right);
+      if(dy < -threshold) newKeys.add(keyMap.up);
+      if(dy > threshold) newKeys.add(keyMap.down);
+      if(dx < -threshold) newKeys.add(keyMap.left);
+      if(dx > threshold) newKeys.add(keyMap.right);
 
       activeKeys.forEach(k=>{ if(!newKeys.has(k)) dispatchKey('keyup', k); });
       newKeys.forEach(k=>{ if(!activeKeys.has(k)) dispatchKey('keydown', k); });
 
       activeKeys = newKeys;
 
-      thumbEl.style.left = `${30 + Math.max(-30, Math.min(30, dx))/stickEl.clientWidth*100}%`;
-      thumbEl.style.top = `${30 + Math.max(-30, Math.min(30, dy))/stickEl.clientHeight*100}%`;
+      const maxMove = 30;
+      const moveX = Math.max(-maxMove, Math.min(maxMove, dx));
+      const moveY = Math.max(-maxMove, Math.min(maxMove, dy));
+      thumbEl.style.left = 30 + moveX/stickEl.clientWidth*100 + '%';
+      thumbEl.style.top = 30 + moveY/stickEl.clientHeight*100 + '%';
     }
 
     function end(e){
       e.preventDefault();
       activeKeys.forEach(k=>dispatchKey('keyup', k));
       activeKeys.clear();
-      thumbEl.style.left = '30%';
-      thumbEl.style.top = '30%';
+      thumbEl.style.left='30%';
+      thumbEl.style.top='30%';
       document.removeEventListener('mousemove', move);
       document.removeEventListener('mouseup', end);
       document.removeEventListener('touchmove', move);
