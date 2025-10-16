@@ -66,13 +66,13 @@ document.addEventListener('DOMContentLoaded', () => {
   player.load(SWF_URL);
 
   function focusPlayer() { try { player.focus(); } catch(e){} }
-  ruffleContainer.addEventListener('mousedown', focusPlayer);
-  ruffleContainer.addEventListener('touchstart', focusPlayer, {passive:false});
 
   function dispatchKey(type, code){
     focusPlayer();
-    const ev = new KeyboardEvent(type, {bubbles:true, cancelable:true, composed:true, key: code==='Space'?' ':code, code});
-    try { player.dispatchEvent(ev); } catch(e){}
+    setTimeout(()=>{
+      const ev = new KeyboardEvent(type, {bubbles:true, cancelable:true, composed:true, key: code==='Space'?' ':code, code});
+      try { player.dispatchEvent(ev); } catch(e){}
+    }, 10);
   }
 
   document.querySelectorAll('.mid-buttons button').forEach(btn=>{
@@ -91,20 +91,29 @@ document.addEventListener('DOMContentLoaded', () => {
   function setupJoystick(stickEl, thumbEl, keyMap){
     let activeKeys = new Set();
 
-    const rect = stickEl.getBoundingClientRect();
-    const centerX = rect.left + rect.width/2;
-    const centerY = rect.top + rect.height/2;
-    const maxMove = rect.width/2 - thumbEl.offsetWidth/2;
+    function getCenter() {
+      const rect = stickEl.getBoundingClientRect();
+      return {cx: rect.left + rect.width/2, cy: rect.top + rect.height/2, maxMove: rect.width/2 - thumbEl.offsetWidth/2};
+    }
 
     function start(e){
       e.preventDefault(); focusPlayer();
-      const moveHandler = ev=>{
+      const center = getCenter();
+
+      function moveHandler(ev){
         ev.preventDefault();
         const pos = ev.touches ? ev.touches[0] : ev;
-        const dx = pos.clientX - centerX;
-        const dy = pos.clientY - centerY;
-        const threshold = 10;
+        let dx = pos.clientX - center.cx;
+        let dy = pos.clientY - center.cy;
 
+        const distance = Math.sqrt(dx*dx + dy*dy);
+        const maxDist = center.maxMove;
+        if(distance > maxDist){
+          const ratio = maxDist/distance;
+          dx *= ratio; dy *= ratio;
+        }
+
+        const threshold = 5;
         let newKeys = new Set();
         if(dy < -threshold) newKeys.add(keyMap.up);
         if(dy > threshold) newKeys.add(keyMap.down);
@@ -115,13 +124,11 @@ document.addEventListener('DOMContentLoaded', () => {
         newKeys.forEach(k=>{ if(!activeKeys.has(k)) dispatchKey('keydown', k); });
         activeKeys = newKeys;
 
-        let moveX = Math.max(-maxMove, Math.min(maxMove, dx));
-        let moveY = Math.max(-maxMove, Math.min(maxMove, dy));
-        thumbEl.style.left = 50 + moveX/maxMove*50 - 20 + '%';
-        thumbEl.style.top = 50 + moveY/maxMove*50 - 20 + '%';
-      };
+        thumbEl.style.left = 50 + dx/maxDist*50 - 20 + '%';
+        thumbEl.style.top = 50 + dy/maxDist*50 - 20 + '%';
+      }
 
-      const endHandler = ev=>{
+      function endHandler(ev){
         ev.preventDefault();
         activeKeys.forEach(k=>dispatchKey('keyup', k));
         activeKeys.clear();
@@ -131,7 +138,7 @@ document.addEventListener('DOMContentLoaded', () => {
         document.removeEventListener('touchmove', moveHandler);
         document.removeEventListener('touchend', endHandler);
         document.removeEventListener('touchcancel', endHandler);
-      };
+      }
 
       document.addEventListener('mousemove', moveHandler);
       document.addEventListener('mouseup', endHandler);
