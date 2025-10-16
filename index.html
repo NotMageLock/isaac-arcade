@@ -37,7 +37,6 @@
   <div class="game-wrap">
     <div class="game-outer">
       <div id="game-container">
-        <!-- Ruffle player will be inserted here when Run Game is pressed -->
       </div>
       <div class="run-overlay" id="run-overlay">
         <button id="run-btn" class="run-btn">Run Game</button>
@@ -46,7 +45,6 @@
   </div>
 
   <div class="controls">
-    <!-- Left joystick: WASD -->
     <div class="stick" id="left-stick" aria-hidden="false">
       <div class="dpad">
         <button data-key="KeyQ" class="center" style="visibility:hidden"></button>
@@ -63,14 +61,12 @@
       </div>
     </div>
 
-    <!-- Middle action buttons: Q, E, Space -->
     <div class="mid-buttons">
       <button data-key="KeyQ">Q</button>
       <button data-key="KeyE">E</button>
       <button data-key="Space" class="space-btn">Space</button>
     </div>
 
-    <!-- Right joystick: Arrow keys -->
     <div class="stick" id="right-stick" aria-hidden="false">
       <div class="dpad">
         <button data-key="ArrowUp" style="visibility:visible">↑</button>
@@ -88,7 +84,7 @@
     </div>
   </div>
 
-  <script src="https://unpkg.com/@ruffle-rs/ruffle@latest/dist/ruffle.js"></script>
+  <script src="https://unpkg.com/@ruffle-rs/ruffle"></script>
   <script>
     const SWF_URL = 'https://github.com/NotMageLock/isaac-arcade/releases/download/large-files/isaac.swf';
 
