@@ -7,7 +7,7 @@
 <style>
 html, body { margin:0; height:100%; font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial; background: center / cover no-repeat url('background.jpg'); -webkit-user-select:none; -ms-user-select:none; user-select:none; overflow:hidden; }
 body { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-#ruffle-container { width:100%; max-width:900px; aspect-ratio:4/3; background:transparent; position:relative; margin-top:12px; }
+#ruffle-container { width:100%; max-width:900px; aspect-ratio:4/3; position:relative; margin-top:12px; }
 #ruffle-player { width:100%; height:100%; position:absolute; inset:0; }
 .controls { width:100%; max-width:900px; display:flex; justify-content:space-between; align-items:center; margin-top:auto; padding:12px; box-sizing:border-box; pointer-events:none; }
 .stick { width:40%; aspect-ratio:1/1; background: rgba(255,255,255,0.06); border-radius:50%; position:relative; touch-action:none; display:grid; place-items:center; pointer-events:auto; }
@@ -44,6 +44,10 @@ document.addEventListener('DOMContentLoaded', () => {
   ruffleContainer.appendChild(player);
   player.load(SWF_URL);
 
+  function focusPlayer() { try { player.focus(); } catch(e){} }
+  ruffleContainer.addEventListener('touchstart', focusPlayer, {passive:false});
+  ruffleContainer.addEventListener('mousedown', focusPlayer);
+
   function dispatchKey(type, code){
     const ev = new KeyboardEvent(type, { bubbles:true, cancelable:true, composed:true, key: code==='Space'?' ':code, code });
     try { player.dispatchEvent(ev); } catch(e){}
@@ -52,7 +56,7 @@ document.addEventListener('DOMContentLoaded', () => {
   document.querySelectorAll('.mid-buttons button').forEach(btn=>{
     const code = btn.getAttribute('data-key');
     let active = false;
-    const start = e => { e.preventDefault(); if(active) return; active=true; btn.classList.add('active'); dispatchKey('keydown', code); }
+    const start = e => { e.preventDefault(); active=true; btn.classList.add('active'); focusPlayer(); dispatchKey('keydown', code); }
     const end = e => { e.preventDefault(); if(!active) return; active=false; btn.classList.remove('active'); dispatchKey('keyup', code); }
     btn.addEventListener('mousedown', start);
     btn.addEventListener('touchstart', start, {passive:false});
@@ -68,8 +72,8 @@ document.addEventListener('DOMContentLoaded', () => {
 
     function start(e){
       e.preventDefault();
+      focusPlayer();
       const pos = e.touches?e.touches[0]:e;
-      const rect = stickEl.getBoundingClientRect();
       startX = pos.clientX;
       startY = pos.clientY;
       move(pos);
@@ -77,6 +81,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.addEventListener('mouseup', end);
       document.addEventListener('touchmove', move, {passive:false});
       document.addEventListener('touchend', end, {passive:false});
+      document.addEventListener('touchcancel', end, {passive:false});
     }
 
     function move(e){
@@ -114,6 +119,7 @@ document.addEventListener('DOMContentLoaded', () => {
       document.removeEventListener('mouseup', end);
       document.removeEventListener('touchmove', move);
       document.removeEventListener('touchend', end);
+      document.removeEventListener('touchcancel', end);
     }
 
     stickEl.addEventListener('mousedown', start);
