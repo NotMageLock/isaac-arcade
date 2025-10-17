@@ -1,49 +1,21 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
-<title>Isaac Arcade</title>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1.0,user-scalable=no" />
+<title>Isaac Arcade — fixed input</title>
 <style>
-html, body {
-  margin:0; height:100%;
-  font-family: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial;
-  background:center / cover no-repeat url('background.jpg');
-  -webkit-user-select:none; -ms-user-select:none; user-select:none;
-  overflow:hidden;
-}
-body { display:flex; flex-direction:column; align-items:center; justify-content:flex-start; }
-#ruffle-container {
-  width:100%; max-width:900px; aspect-ratio:4/3;
-  position:relative; margin-top:12px;
-}
-#ruffle-player {
-  width:100%; height:100%; position:absolute; inset:0;
-}
-.controls {
-  width:100%; max-width:900px; display:flex; justify-content:space-between; align-items:center;
-  margin-top:auto; padding:12px; box-sizing:border-box; pointer-events:none;
-}
-.stick {
-  width:40%; aspect-ratio:1/1; background: rgba(255,255,255,0.06); border-radius:50%;
-  position:relative; touch-action:none; display:grid; place-items:center; pointer-events:auto;
-}
-.thumb {
-  width:40%; height:40%; background:rgba(255,255,255,0.4); border-radius:50%;
-  position:absolute; left:30%; top:30%; transition:left 0.05s, top 0.05s;
-}
-.mid-buttons {
-  display:flex; flex-direction:column; gap:8px; justify-content:center; align-items:center; pointer-events:auto;
-}
-.mid-buttons button {
-  min-width:70px; padding:12px; font-weight:700; font-size:16px;
-  border:none; border-radius:8px;
-  background:rgba(0,0,0,0.7); color:#fff;
-}
-@media(max-width:420px){
-  .stick { width:46%; }
-  .mid-buttons button { min-width:56px; padding:10px; font-size:14px; }
-}
+html,body{height:100%;margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial;background:#111;overflow:hidden;-webkit-user-select:none;user-select:none}
+body{display:flex;flex-direction:column;align-items:center;justify-content:flex-start}
+#ruffle-container{width:100%;max-width:900px;aspect-ratio:4/3;position:relative;margin-top:12px}
+#ruffle-player{width:100%;height:100%;position:absolute;inset:0}
+.controls{width:100%;max-width:900px;display:flex;justify-content:space-between;align-items:center;margin-top:auto;padding:12px;box-sizing:border-box;pointer-events:none}
+.stick{width:40%;aspect-ratio:1/1;background:rgba(255,255,255,0.06);border-radius:50%;position:relative;touch-action:none;display:grid;place-items:center;pointer-events:auto}
+.thumb{width:40%;height:40%;background:rgba(255,255,255,0.4);border-radius:50%;position:absolute;left:30%;top:30%;transition:left .05s,top .05s}
+.mid-buttons{display:flex;flex-direction:column;gap:8px;justify-content:center;align-items:center;pointer-events:auto}
+.mid-buttons button{min-width:70px;padding:12px;font-weight:700;font-size:16px;border:none;border-radius:8px;background:rgba(0,0,0,0.7);color:#fff}
+.mid-buttons button.active{box-shadow:0 0 18px rgba(255,255,255,0.12) inset; transform:translateY(1px)}
+@media(max-width:420px){.stick{width:46%}.mid-buttons button{min-width:56px;padding:10px;font-size:14px}}
 </style>
 </head>
 <body>
@@ -52,11 +24,13 @@ body { display:flex; flex-direction:column; align-items:center; justify-content:
 
 <div class="controls">
   <div class="stick" id="left-stick"><div class="thumb" id="left-thumb"></div></div>
+
   <div class="mid-buttons">
     <button data-key="KeyQ">Q</button>
     <button data-key="KeyE">E</button>
     <button data-key="Space">Space</button>
   </div>
+
   <div class="stick" id="right-stick"><div class="thumb" id="right-thumb"></div></div>
 </div>
 
@@ -64,60 +38,87 @@ body { display:flex; flex-direction:column; align-items:center; justify-content:
 <script>
 document.addEventListener('DOMContentLoaded', () => {
   const SWF_URL = 'https://files.catbox.moe/kk84m9.swf';
-  const ruffleContainer = document.getElementById('ruffle-container');
   const ruffle = window.RufflePlayer.newest();
   const player = ruffle.createPlayer();
   player.id = 'ruffle-player';
-  ruffleContainer.appendChild(player);
+  document.getElementById('ruffle-container').appendChild(player);
 
-  // Load the SWF and focus
+  // A small queue for key events fired before player.input exists.
+  const preInputQueue = [];
+
+  // Load SWF
   player.load(SWF_URL).then(() => {
-    tryFocus();
+    // Try to focus when loaded; real focus will happen on user interaction.
+    try { player.focus(); } catch (e) {}
+    // Flush any queued events once input exists.
+    waitForInput().then(() => {
+      while (preInputQueue.length) {
+        const ev = preInputQueue.shift();
+        doKey(ev.type, ev.code);
+      }
+    });
   });
 
-  // --- focus handling ---
-  function tryFocus() {
-    try { player.focus(); } catch(e){}
-    if (!player.input) {
-      setTimeout(tryFocus, 300); // retry until player.input is ready
-    }
+  // Wait until player.input exists (poll)
+  function waitForInput(timeout = 5000) {
+    return new Promise(resolve => {
+      const start = Date.now();
+      (function check() {
+        if (player && player.input) return resolve(true);
+        if (Date.now() - start > timeout) return resolve(false);
+        setTimeout(check, 150);
+      })();
+    });
   }
 
-  // Prevent scroll on arrow keys or space
-  window.addEventListener('keydown', e => {
-    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) {
-      e.preventDefault();
-    }
-  }, { passive:false });
+  // Focus player when the user touches/clicks the Ruffle element itself.
+  // Important: do NOT preventDefault here, so the canvas still receives the touch.
+  player.addEventListener('touchstart', () => { try { player.focus(); } catch (e) {} }, { passive: true });
+  player.addEventListener('mousedown', () => { try { player.focus(); } catch (e) {} });
 
-  // Focus on first user interaction (for mobile)
-  document.body.addEventListener('touchstart', () => tryFocus(), { once:true, passive:false });
-  document.body.addEventListener('mousedown', () => tryFocus(), { once:true });
-
-  // --- safe key dispatcher ---
+  // Central key dispatcher with queue fallback
   function dispatchKey(type, code) {
-    if (!player.input) { // fallback retry if input isn't ready yet
-      setTimeout(() => dispatchKey(type, code), 150);
+    if (!player || !player.input) {
+      // queue and return; waitForInput will flush
+      preInputQueue.push({ type, code });
       return;
     }
-    if (type === 'keydown') player.input.keyDown(code);
-    else if (type === 'keyup') player.input.keyUp(code);
+    doKey(type, code);
   }
 
-  // --- Button controls ---
+  // call into Ruffle internal API
+  function doKey(type, code) {
+    try {
+      if (type === 'keydown') player.input.keyDown(code);
+      else if (type === 'keyup') player.input.keyUp(code);
+    } catch (err) {
+      // Last-ditch fallback: try focusing & queueing once more
+      try { player.focus(); } catch (e) {}
+      preInputQueue.push({ type, code });
+    }
+  }
+
+  // Prevent page scroll for arrow/space keys generated by our virtual controls only.
+  // NOTE: we do not add a global touchstart preventDefault; that would block in-game touches.
+  window.addEventListener('keydown', e => {
+    if (["ArrowUp","ArrowDown","ArrowLeft","ArrowRight"," "].includes(e.key)) e.preventDefault();
+  }, { passive: false });
+
+  // Virtual buttons (Q, E, Space)
   document.querySelectorAll('.mid-buttons button').forEach(btn => {
     const code = btn.getAttribute('data-key');
     let active = false;
 
-    const start = e => {
-      e.preventDefault();
+    const start = ev => {
+      // preventDefault here stops page scrolling on Space if this touch/click causes it
+      ev.preventDefault();
       if (active) return;
       active = true;
       btn.classList.add('active');
       dispatchKey('keydown', code);
     };
-    const end = e => {
-      e.preventDefault();
+    const end = ev => {
+      ev.preventDefault();
       if (!active) return;
       active = false;
       btn.classList.remove('active');
@@ -125,29 +126,26 @@ document.addEventListener('DOMContentLoaded', () => {
     };
 
     btn.addEventListener('mousedown', start);
-    btn.addEventListener('touchstart', start, { passive:false });
+    btn.addEventListener('touchstart', start, { passive: false });
     btn.addEventListener('mouseup', end);
     btn.addEventListener('mouseleave', end);
-    btn.addEventListener('touchend', end, { passive:false });
-    btn.addEventListener('touchcancel', end, { passive:false });
+    btn.addEventListener('touchend', end, { passive: false });
+    btn.addEventListener('touchcancel', end, { passive: false });
   });
 
-  // --- Joystick controls ---
+  // Joystick implementation — limited preventDefault to joystick interactions only.
   function setupJoystick(stickEl, thumbEl, keyMap) {
     let activeKeys = new Set();
 
     function getCenter() {
       const rect = stickEl.getBoundingClientRect();
-      return {
-        cx: rect.left + rect.width/2,
-        cy: rect.top + rect.height/2,
-        maxMove: rect.width/2 - thumbEl.offsetWidth/2
-      };
+      return { cx: rect.left + rect.width/2, cy: rect.top + rect.height/2, maxMove: rect.width/2 - thumbEl.offsetWidth/2 };
     }
 
     function start(e) {
+      // Only prevent default for drag events started on the virtual stick itself
       e.preventDefault();
-      tryFocus();
+      try { player.focus(); } catch (er) {}
       const center = getCenter();
 
       function moveHandler(ev) {
@@ -170,16 +168,19 @@ document.addEventListener('DOMContentLoaded', () => {
         if (dx < -threshold) newKeys.add(keyMap.left);
         if (dx > threshold) newKeys.add(keyMap.right);
 
+        // release keys no longer active
         activeKeys.forEach(k => { if (!newKeys.has(k)) dispatchKey('keyup', k); });
+        // press new keys
         newKeys.forEach(k => { if (!activeKeys.has(k)) dispatchKey('keydown', k); });
         activeKeys = newKeys;
 
-        thumbEl.style.left = 50 + dx/maxDist*50 - 20 + '%';
-        thumbEl.style.top  = 50 + dy/maxDist*50 - 20 + '%';
+        // visually move thumb (percent-based)
+        thumbEl.style.left = 50 + (dx / maxDist) * 50 - 20 + '%';
+        thumbEl.style.top  = 50 + (dy / maxDist) * 50 - 20 + '%';
       }
 
       function endHandler(ev) {
-        ev.preventDefault();
+        ev && ev.preventDefault();
         activeKeys.forEach(k => dispatchKey('keyup', k));
         activeKeys.clear();
         thumbEl.style.left = '30%';
@@ -193,13 +194,13 @@ document.addEventListener('DOMContentLoaded', () => {
 
       document.addEventListener('mousemove', moveHandler);
       document.addEventListener('mouseup', endHandler);
-      document.addEventListener('touchmove', moveHandler, { passive:false });
-      document.addEventListener('touchend', endHandler, { passive:false });
-      document.addEventListener('touchcancel', endHandler, { passive:false });
+      document.addEventListener('touchmove', moveHandler, { passive: false });
+      document.addEventListener('touchend', endHandler, { passive: false });
+      document.addEventListener('touchcancel', endHandler, { passive: false });
     }
 
     stickEl.addEventListener('mousedown', start);
-    stickEl.addEventListener('touchstart', start, { passive:false });
+    stickEl.addEventListener('touchstart', start, { passive: false });
   }
 
   setupJoystick(document.getElementById('left-stick'), document.getElementById('left-thumb'), {
